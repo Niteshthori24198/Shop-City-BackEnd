@@ -36,10 +36,10 @@ const addReview = async (req, res) => {
             })
         }
 
-        
+
 
         const alreadyReviewPresent = await ReviewModel.findOne({ ProductId, OrderId, CustomerId: UserID });
-        
+
         if (alreadyReviewPresent) {
             console.log('review over ride ho rha hai .....');
             const productInfo = await ProductModel.findById({ _id: ProductId })
@@ -57,7 +57,7 @@ const addReview = async (req, res) => {
 
             await ProductModel.findByIdAndUpdate({ _id: ProductId }, { ...productInfo });
 
-            await ReviewModel.findByIdAndUpdate({_id:alreadyReviewPresent._id}, { NewRating, Description, CustomerName: userInfoo.Name, CustomerImage: userInfoo.Image });
+            await ReviewModel.findByIdAndUpdate({ _id: alreadyReviewPresent._id }, { NewRating, Description, CustomerName: userInfoo.Name, CustomerImage: userInfoo.Image });
 
             return res.status(200).send({
                 "error": "no error",
@@ -65,13 +65,13 @@ const addReview = async (req, res) => {
                 "msg": "Your review has been successfully added."
             })
         } else {
-    
+
 
             const OrderItem = await OrderModel.findOne({ UserID: UserID })
-            
+
             const isDelivered = isOrderDelivered(OrderItem.Products, ProductId)
 
-            if(!isDelivered){
+            if (!isDelivered) {
                 return res.status(400).send({
                     "error": "You can not able to give review now",
                     "Success": false,
@@ -97,7 +97,7 @@ const addReview = async (req, res) => {
 
             // add review and update product
             const newReview = new ReviewModel({
-                ProductId, OrderId, NewRating, Description, CustomerId: UserID,  CustomerName: userInfoo.Name
+                ProductId, OrderId, NewRating, Description, CustomerId: UserID, CustomerName: userInfoo.Name
             })
             await newReview.save();
 
@@ -122,12 +122,12 @@ const addReview = async (req, res) => {
 
 }
 
-function isOrderDelivered(orders, productId){
-    for(let i=0; i<orders.length; i++){
-        if(orders[i].product == productId){
-            if(orders[i].Status == 'Delivered'){
+function isOrderDelivered(orders, productId) {
+    for (let i = 0; i < orders.length; i++) {
+        if (orders[i].product == productId) {
+            if (orders[i].Status == 'Delivered') {
                 return true
-            }else{
+            } else {
                 return false
             }
         }
@@ -245,14 +245,14 @@ const deleteReview = async (req, res) => {
 
             ableToDelete = true
 
-        }else{
+        } else {
 
             const userInfo = await UserModel.findById({ _id: UserID });
             // If User is Admin then can able to delete any review
             if (userInfo && userInfo.isAdmin) {
-    
+
                 ableToDelete = true
-    
+
             }
 
         }
@@ -326,32 +326,36 @@ const getReviewByProductId = async (req, res) => {
                 "Review": []
             })
         }
-        for(let review of reviewInfo){
+        for (let review of reviewInfo) {
             const user = await UserModel.findById({ _id: review.CustomerId });
 
-            const currentDate = new Date();
-            // Get the current date and get expiration date
-            const futureDate = new Date();
-            futureDate.setDate(currentDate.getDate() + 7);
-            futureDate.setMinutes(futureDate.getMinutes() - 20);
-    
-    
-            if (user.S3_Url_ExipreDate && user.S3_Url_ExipreDate < currentDate) {
-                user.S3_Url_ExipreDate = futureDate;
-    
-                const getObjectParams = {
-                    Bucket: bucketName,
-                    Key: user.S3_Url
+            if (user) {
+
+
+                const currentDate = new Date();
+                // Get the current date and get expiration date
+                const futureDate = new Date();
+                futureDate.setDate(currentDate.getDate() + 7);
+                futureDate.setMinutes(futureDate.getMinutes() - 20);
+
+
+                if (user.S3_Url_ExipreDate && user.S3_Url_ExipreDate < currentDate) {
+                    user.S3_Url_ExipreDate = futureDate;
+
+                    const getObjectParams = {
+                        Bucket: bucketName,
+                        Key: user.S3_Url
+                    }
+                    const command1 = new GetObjectCommand(getObjectParams);
+                    const url = await getSignedUrl(s3, command1, { expiresIn: 604800 });
+                    user.Image = url;
+                    await UserModel.findByIdAndUpdate({ _id: user._id }, { S3_Url_ExipreDate: futureDate, Image: url })
                 }
-                const command1 = new GetObjectCommand(getObjectParams);
-                const url = await getSignedUrl(s3, command1, { expiresIn: 604800 });
-                user.Image = url;
-                await UserModel.findByIdAndUpdate({ _id: user._id }, { S3_Url_ExipreDate: futureDate, Image: url })
+
+                review.CustomerImage = user.Image
+
+                review.CustomerName = user.Name
             }
-            
-            review.CustomerImage = user.Image
-            
-            review.CustomerName = user.Name
         }
         return res.status(200).send({
             "error": "no error",
@@ -408,36 +412,38 @@ const getReviewByOrderId = async (req, res) => {
 }
 
 
-const getAllReview = async (req,res) => {
+const getAllReview = async (req, res) => {
     try {
         const reviewInfo = await ReviewModel.find();
-        for(let review of reviewInfo){
+        for (let review of reviewInfo) {
             const user = await UserModel.findById({ _id: review.CustomerId });
 
-            const currentDate = new Date();
-            // Get the current date and get expiration date
-            const futureDate = new Date();
-            futureDate.setDate(currentDate.getDate() + 7);
-            futureDate.setMinutes(futureDate.getMinutes() - 20);
-           
-    
-    
-            if (user.S3_Url_ExipreDate && user.S3_Url_ExipreDate < currentDate) {
-                user.S3_Url_ExipreDate = futureDate;
-    
-                const getObjectParams = {
-                    Bucket: bucketName,
-                    Key: user.S3_Url
+
+            if (user) {
+                const currentDate = new Date();
+                // Get the current date and get expiration date
+                const futureDate = new Date();
+                futureDate.setDate(currentDate.getDate() + 7);
+                futureDate.setMinutes(futureDate.getMinutes() - 20);
+
+                if (user.S3_Url_ExipreDate && user.S3_Url_ExipreDate < currentDate) {
+                    user.S3_Url_ExipreDate = futureDate;
+
+                    const getObjectParams = {
+                        Bucket: bucketName,
+                        Key: user.S3_Url
+                    }
+                    const command1 = new GetObjectCommand(getObjectParams);
+                    const url = await getSignedUrl(s3, command1, { expiresIn: 604800 });
+                    user.Image = url;
+                    await UserModel.findByIdAndUpdate({ _id: user._id }, { S3_Url_ExipreDate: futureDate, Image: url })
                 }
-                const command1 = new GetObjectCommand(getObjectParams);
-                const url = await getSignedUrl(s3, command1, { expiresIn: 604800 });
-                user.Image = url;
-                await UserModel.findByIdAndUpdate({ _id: user._id }, { S3_Url_ExipreDate: futureDate, Image: url })
+
+                review.CustomerImage = user.Image
+
+                review.CustomerName = user.Name
             }
-            
-            review.CustomerImage = user.Image
-            
-            review.CustomerName = user.Name
+
         }
         return res.status(200).send({
             "error": "no error",
